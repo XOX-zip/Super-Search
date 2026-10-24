@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SuperSearch;
@@ -13,6 +14,10 @@ class Config
 
     [JsonIgnore]
     public bool HasAi => !string.IsNullOrWhiteSpace(AiEndpoint) && !string.IsNullOrWhiteSpace(AiKey);
+
+    /// <summary>最近一次读取配置时的问题，供界面提示用。</summary>
+    [JsonIgnore]
+    public static string? LastWarning { get; private set; }
 
     // 按优先级给出的候选目录：Roaming → Local → 程序目录 → 临时目录
     internal static IEnumerable<string> CandidateDirs()
@@ -31,6 +36,7 @@ class Config
 
     public static Config Load()
     {
+        LastWarning = null;
         foreach (var dir in CandidateDirs())
         {
             var path = Path.Combine(dir, "config.json");
@@ -41,7 +47,7 @@ class Config
             }
             catch (Exception ex)
             {
-                Console.WriteLine("配置读取失败 (" + path + "): " + ex.Message);
+                LastWarning = "配置读取失败 (" + path + "): " + ex.Message;
             }
         }
         return new Config();

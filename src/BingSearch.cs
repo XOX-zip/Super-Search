@@ -1,7 +1,11 @@
-﻿using System.Net;
+using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 
 namespace SuperSearch;
+
+record SearchFetch(List<SearchResult> Results, string? DebugPath);
 
 static class BingSearch
 {
@@ -42,7 +46,7 @@ static class BingSearch
 
     static readonly Regex TagRx = new("<[^>]+>", RegexOptions.Compiled);
 
-    public static async Task<List<SearchResult>> SearchAsync(string query, CancellationToken ct = default)
+    public static async Task<SearchFetch> SearchAsync(string query, CancellationToken ct = default)
     {
         var url = "https://www.bing.com/search?q=" + Uri.EscapeDataString(query) + "&mkt=en-US&setlang=en";
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
@@ -57,7 +61,6 @@ static class BingSearch
         var results = new List<SearchResult>();
         var blocks = BlockRx.Matches(html);
 
-        int firstShown = 0;
         foreach (Match block in blocks)
         {
             var cls = block.Groups[1].Value;
@@ -65,14 +68,7 @@ static class BingSearch
             if (cls.Contains("b_ad")) continue;
 
             var h2 = H2Rx.Match(b);
-            if (!h2.Success)
-            {
-                if (firstShown++ < 1)
-                {
-                    Console.WriteLine(b.Length > 300 ? b[..300] : b);
-                }
-                continue;
-            }
+            if (!h2.Success) continue;
 
             var a = ARx.Match(h2.Groups[1].Value);
             if (!a.Success) continue;
@@ -92,9 +88,8 @@ static class BingSearch
             results.Add(new SearchResult(title, href, snippet));
         }
 
-        Console.WriteLine($"[诊断] 解析出结果数={results.Count}");
-        if (results.Count == 0) SaveDebug(html);
-        return results;
+        var debugPath = results.Count == 0 ? SaveDebug(html) : null;
+        return new SearchFetch(results, debugPath);
     }
 
     static string UnwrapBingRedirect(string href)
@@ -120,15 +115,15 @@ static class BingSearch
         catch { return ""; }
     }
 
-    static void SaveDebug(string html)
+    static string? SaveDebug(string html)
     {
         try
         {
             var path = Path.Combine(Path.GetTempPath(), "bing_debug.html");
             File.WriteAllText(path, html);
-            Console.WriteLine("(调试: 原始响应已存到 " + path + ")");
+            return path;
         }
-        catch { }
+        catch { return null; }
     }
 
     static string Clean(string s)
