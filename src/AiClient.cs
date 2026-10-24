@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -8,7 +9,7 @@ static class AiClient
 {
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
 
-    public static async Task<bool> PingAsync(Config cfg)
+    public static async Task<bool> PingAsync(Config cfg, CancellationToken ct = default)
     {
         try
         {
@@ -16,7 +17,7 @@ static class AiClient
             {
                 new { role = "user", content = "hi" }
             }, 5);
-            using var res = await Http.SendAsync(req);
+            using var res = await Http.SendAsync(req, ct);
             return res.IsSuccessStatusCode;
         }
         catch
@@ -25,7 +26,7 @@ static class AiClient
         }
     }
 
-    public static async Task<List<SearchResult>?> FilterAsync(Config cfg, string query, List<SearchResult> pool)
+    public static async Task<List<SearchResult>?> FilterAsync(Config cfg, string query, List<SearchResult> pool, CancellationToken ct = default)
     {
         var sb = new StringBuilder();
         sb.AppendLine("搜索词: " + query);
@@ -50,7 +51,7 @@ static class AiClient
                 new { role = "user", content = sb.ToString() }
             }, 600);
 
-            using var res = await Http.SendAsync(req);
+            using var res = await Http.SendAsync(req, ct);
             if (!res.IsSuccessStatusCode) return null;
 
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
